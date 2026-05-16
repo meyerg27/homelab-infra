@@ -21,7 +21,7 @@ spec:
             - containerPort: 3000
           env:
             - name: DATABASE_URL
-              value: postgresql://umami:umami@postgres-svc.homelab:5432/umami
+              value: postgresql://umami:umamiSecure2026@postgres-svc.homelab:5432/umami
             - name: TRACKER_SCRIPT_NAME
               value: umami.js
           resources:
