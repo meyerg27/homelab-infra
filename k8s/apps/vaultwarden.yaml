@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultwarden
+  namespace: homelab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vaultwarden
+  template:
+    metadata:
+      labels:
+        app: vaultwarden
+    spec:
+      containers:
+      - name: vaultwarden
+        image: vaultwarden/server:alpine
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 3012
+          name: websocket
+        env:
+        - name: DOMAIN
+          value: "http://vaultwarden.local"
+        - name: DATABASE_URL
+          value: "/data/vaultwarden.db"
+        - name: ENABLE_WEBSOCKET
+          value: "true"
+        - name: SIGNUPS_ALLOWED
+          value: "true"
+        - name: SHOW_PASSWORD_HINT
+          value: "false"
+        - name: ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vaultwarden-secrets
+              key: admin-token
+              optional: true
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vaultwarden-svc
+  namespace: homelab
+spec:
+  selector:
+    app: vaultwarden
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: websocket
+    port: 3012
+    targetPort: 3012
+  type: LoadBalancer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vaultwarden-ingress
+  namespace: homelab
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+  - host: vaultwarden.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vaultwarden-svc
+            port:
+              number: 80

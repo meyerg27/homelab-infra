@@ -13,7 +13,7 @@ spec:
   project: default
   source:
     # REPLACE with your actual GitHub repo
-    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    repoURL: https://github.com/meyerg27/homelab-infra.git
     targetRevision: main
     path: k8s/apps
   destination:
@@ -45,7 +45,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    repoURL: https://github.com/meyerg27/homelab-infra.git
     targetRevision: main
     path: k8s/apps/namespace.yaml
   destination:
@@ -66,7 +66,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    repoURL: https://github.com/meyerg27/homelab-infra.git
     targetRevision: main
     path: k8s/core/postgres.yaml
   destination:
@@ -93,9 +93,32 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    repoURL: https://github.com/meyerg27/homelab-infra.git
     targetRevision: main
     path: k8s/apps/umami.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homelab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 3
+
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-vaultwarden
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/meyerg27/homelab-infra.git
+    targetRevision: main
+    path: k8s/apps/vaultwarden.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: homelab
