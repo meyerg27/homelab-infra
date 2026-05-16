@@ -1,0 +1,73 @@
+#────────────────────────────────────────────
+# K3s Ingress: Traefik with Cloudflare DNS challenge
+# 
+# Prerequisites:
+#   1. K3s installed
+#   2. Cloudflare API token with Zone:DNS:Edit
+#   3. Domain pointed to Cloudflare
+#────────────────────────────────────────────
+
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  chart: traefik
+  repo: https://traefik.github.io/charts
+  version: 27.0.0
+  targetNamespace: kube-system
+  valuesContent: |
+    # Basic config
+    fullnameOverride: traefik
+    namespace:
+      name: kube-system
+      role: security
+    
+    # Cloudflare DNS challenge
+    certResolvers:
+      letsencrypt:
+        challenge:
+          provider: cloudflare
+          cloudflare:
+            apiToken: "${CLOUDFLARE_API_TOKEN}"
+            # OR use API key:
+            # apiKey: "${CLOUDFLARE_API_KEY}"
+            # email: your@email.com
+    
+    # HTTP challenge enabled
+    additionalArguments:
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    
+    # Ports
+    ports:
+      web:
+        port: 80
+        redirectTo: websecure
+      websecure:
+        port: 443
+        tls:
+          certResolver: letsencrypt
+    
+    # Persist SSL certs
+    persistence:
+      enabled: true
+      size: 1Mi
+      path: /letsencrypt
+    
+    # Security
+    securityContext:
+      readOnlyRootFilesystem: true
+      runAsGroup: 0
+      runAsUser: 0
+      runAsNonRoot: false
+    
+    # Resource limits
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi

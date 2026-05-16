@@ -1,0 +1,47 @@
+---
+# Docker CT Setup Playbook
+- name: Configure Docker on a CT
+  hosts: docker_hosts
+  become: true
+  vars:
+    docker_users:
+      - root
+
+  tasks:
+    - name: Install Docker
+      shell: |
+        curl -fsSL https://get.docker.com | sh
+      register: docker_install
+      changed_when: "'Installed' in docker_install.stdout or 'docker' in docker_install.stdout"
+
+    - name: Enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add users to docker group
+      user:
+        name: "{{ item }}"
+        groups: docker
+        append: yes
+      loop: "{{ docker_users }}"
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
+      ignore_errors: true
+
+    - name: Configure Docker daemon
+      template:
+        src: daemon.json.j2
+        dest: /etc/docker/daemon.json
+      notify: Restart Docker
+
+  handlers:
+    - name: Restart Docker
+      systemd:
+        name: docker
+        state: restarted

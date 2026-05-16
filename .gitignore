@@ -1,0 +1,42 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!.tfvars.example
+
+# Ansible
+*.retry
+
+# Kubernetes
+*.kubeconfig
+kubeconfig*
+
+# Secrets
+*.pem
+*.key
+*.secret
+credentials/
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,170 @@
+#────────────────────────────────────────────
+# GitHub Actions: Homelab CI Pipeline
+# Runs on: push to main, PRs, manual dispatch
+#────────────────────────────────────────────
+
+name: Homelab CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  #────────────────────────────────────────
+  # Job 1: Validate Terraform
+  #────────────────────────────────────────
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+          terraform_wrapper: true
+
+      - name: Terraform Init
+        working-directory: terraform
+        env:
+          TF_VAR_proxmox_api_url: ${{ secrets.PM_API_URL }}
+          TF_VAR_proxmox_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
+          TF_VAR_proxmox_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Terraform Format Check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        working-directory: terraform
+        env:
+          TF_VAR_proxmox_api_url: ${{ secrets.PM_API_URL }}
+          TF_VAR_proxmox_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
+          TF_VAR_proxmox_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
+        run: terraform plan -no-color
+
+  #────────────────────────────────────────
+  # Job 2: Validate Kubernetes Manifests
+  #────────────────────────────────────────
+  k8s-validate:
+    name: K8s Manifest Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.30.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Install kubeval
+        run: |
+          wget -qO kubeval.tar.gz https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval.tar.gz
+          sudo mv kubeval /usr/local/bin/
+
+      - name: Validate YAML syntax
+        run: |
+          find k8s -name "*.yaml" -o -name "*.yml" | xargs kubeval --strict || true
+
+      - name: Helm lint
+        run: |
+          for chart in k8s/*/Chart.yaml; do
+            helm lint "$(dirname "$chart")" || true
+          done
+
+  #────────────────────────────────────────
+  # Job 3: Ansible Lint
+  #────────────────────────────────────────
+  ansible-lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    container: registry.gitlab.com/p合成/dolecule/ansible-alpine:latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run ansible-lint
+        uses: ansible/ansible-lint-action@v6
+        with:
+          args: ""
+
+  #────────────────────────────────────────
+  # Job 4: ShellCheck
+  #────────────────────────────────────────
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+
+  #────────────────────────────────────────
+  # Job 5: Sync to Homelab (on push to main)
+  #────────────────────────────────────────
+  deploy-homelab:
+    name: Deploy to Homelab
+    needs: [terraform-validate, k8s-validate]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+          cli-config-data: |
+            provider "proxmox" {
+              pm_api_url = "${{ secrets.PM_API_URL }}"
+              pm_api_token_id = "${{ secrets.PM_API_TOKEN_ID }}"
+              pm_api_token_secret = "${{ secrets.PM_API_TOKEN_SECRET }}"
+              pm_tls_insecure = true
+            }
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          TF_VAR_proxmox_api_url: ${{ secrets.PM_API_URL }}
+          TF_VAR_proxmox_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
+          TF_VAR_proxmox_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
+        run: |
+          terraform init
+          terraform apply -auto-approve -no-color
+
+      - name: Sync K8s manifests
+        run: |
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            k8s/ \
+            root@192.168.50.104:/opt/k8s-manifests/
+
+      - name: Apply K8s manifests
+        run: |
+          ssh -o StrictHostKeyChecking=no root@192.168.50.104 \
+            'kubectl apply -f /opt/k8s-manifests/ --recursive'

@@ -1,0 +1,8 @@
+#────────────────────────────────────────────
+# Production Variables — DO NOT COMMIT
+# Copy this to proxmox.auto.tfvars and fill in
+#────────────────────────────────────────────
+
+proxmox_api_url          = "https://192.168.50.104:8006/api2/json/"
+proxmox_api_token_id     = "root@pam!your-token-name"
+proxmox_api_token_secret = "your-token-secret-here"

@@ -1,0 +1,107 @@
+#────────────────────────────────────────────
+# ArgoCD App-of-Apps
+# This single Application manages ALL other apps in the homelab
+# Create it AFTER ArgoCD is installed
+#────────────────────────────────────────────
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # REPLACE with your actual GitHub repo
+    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    targetRevision: main
+    path: k8s/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true        # Remove resources deleted from git
+      selfHeal: true     # Auto-sync if drift detected
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true    # Prune after applying new resources
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+# Each app is defined here — they reference manifests in the git repo
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-namespace
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    targetRevision: main
+    path: k8s/apps/namespace.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homelab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-postgres
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    targetRevision: main
+    path: k8s/core/postgres.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homelab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      # Wait for namespace to exist first
+    ignoreDifferences:
+      - group: ""
+        kind: Secret
+        jsonPointers:
+          - /data
+
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-umami
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    targetRevision: main
+    path: k8s/apps/umami.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homelab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 3

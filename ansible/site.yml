@@ -1,0 +1,114 @@
+#────────────────────────────────────────────
+# Ansible: Base Playbook for New CTs
+# Run on all new containers
+#────────────────────────────────────────────
+
+---
+- name: Base configuration for all CTs
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    ansible_user: root
+    timezone: "America/New_York"
+    locales:
+      - "en_US.UTF-8"
+      - "C.UTF-8"
+    packages_base:
+      - curl
+      - wget
+      - git
+      - vim
+      - htop
+      - tree
+      - net-tools
+      - dnsutils
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - unzip
+      - jq
+      - bash-completion
+
+  tasks:
+    #────────────────────────────────────────
+    # 1. Timezone
+    #────────────────────────────────────────
+    - name: Set timezone
+      community.general.timezone:
+        name: "{{ timezone }}"
+
+    #────────────────────────────────────────
+    # 2. Locales
+    #────────────────────────────────────────
+    - name: Install locales
+      ansible.builtin.apt:
+        name: locales
+        state: present
+        update_cache: yes
+
+    - name: Configure locales
+      ansible.builtin.lineinfile:
+        path: /etc/locale.gen
+        regexp: "{{ item }}.*UTF-8"
+        line: "{{ item }} UTF-8"
+        state: present
+      loop: "{{ locales }}"
+
+    - name: Generate locales
+      ansible.builtin.command: locale-gen
+      changed_when: true
+
+    - name: Set default locale
+      ansible.builtin.lineinfile:
+        path: /etc/default/locale
+        create: yes
+        line: "LANG=en_US.UTF-8"
+
+    #────────────────────────────────────────
+    # 3. Base packages
+    #────────────────────────────────────────
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name: "{{ packages_base }}"
+        state: present
+        install_recommends: no
+
+    #────────────────────────────────────────
+    # 4. Dotfiles (optional)
+    #────────────────────────────────────────
+    - name: Clone dotfiles
+      ansible.builtin.git:
+        repo: https://github.com/your-username/dotfiles.git
+        dest: /root/dotfiles
+        version: main
+      ignore_errors: true
+      when: false  # Set to true when you have dotfiles repo
+
+    #────────────────────────────────────────
+    # 5. SSH hardening
+    #────────────────────────────────────────
+    - name: Disable password auth (use keys only)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      notify: Restart sshd
+
+    - name: Disable root login
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin prohibit-password"
+      notify: Restart sshd
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

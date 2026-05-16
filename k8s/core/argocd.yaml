@@ -1,0 +1,96 @@
+#────────────────────────────────────────────
+# ArgoCD — GitOps for Kubernetes
+# Manages all homelab apps from this repo
+# Access: argocd admin password in secret
+#────────────────────────────────────────────
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: kube-system
+spec:
+  chart: argo-cd
+  repo: https://argoproj.github.io/argo-helm
+  version: 7.7.6
+  targetNamespace: argocd
+  valuesContent: |
+    global:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+
+    server:
+      replicas: 1
+      service:
+        type: LoadBalancer  # Gets external IP from MetalLB
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        annotations:
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+        hosts:
+          - argocd.meyernet.xyz
+        tls:
+          - hosts:
+              - argocd.meyernet.xyz
+            secretName: argocd-tls
+
+    repoServer:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    controller:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+    applicationSet:
+      enabled: true
+      replicaCount: 1
+
+    notifications:
+      enabled: false  # Can enable later
+
+---
+# App of Apps — syncs the whole homelab
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/graysonmeyer/homelab-infra.git
+    targetRevision: main
+    path: k8s/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
