@@ -160,11 +160,12 @@ jobs:
       - name: Sync K8s manifests
         run: |
           rsync -avz --delete \
-            -e "ssh -o StrictHostKeyChecking=no" \
+            -e "ssh -o StrictHostKeyChecking=no -i /root/.ssh/id_ed25519" \
             k8s/ \
             root@192.168.50.104:/opt/k8s-manifests/
 
       - name: Apply K8s manifests
         run: |
-          ssh -o StrictHostKeyChecking=no root@192.168.50.104 \
-            'kubectl apply -f /opt/k8s-manifests/ --recursive'
+          ssh -o StrictHostKeyChecking=no -i /root/.ssh/id_ed25519 \
+            root@192.168.50.104 \
+            'kubectl --kubeconfig=/root/.kube/config-k3s apply -f /opt/k8s-manifests/ --recursive'
