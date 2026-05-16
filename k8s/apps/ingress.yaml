@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: umami-ingress
+  namespace: homelab
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+  - host: umami.k3s.meyernet.xyz
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: umami-svc
+            port:
+              number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uptime-kuma-ingress
+  namespace: homelab
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+  - host: status.k3s.meyernet.xyz
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: uptime-kuma-svc
+            port:
+              number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portainer-ingress
+  namespace: homelab
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+  - host: portainer.k3s.meyernet.xyz
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: portainer-svc
+            port:
+              number: 80
