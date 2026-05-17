@@ -1,48 +1,6 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: portainer
-  namespace: homelab
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: portainer
-  template:
-    metadata:
-      labels:
-        app: portainer
-    spec:
-      containers:
-      - name: portainer
-        image: portainer/portainer-ce:alpine
-        ports:
-        - containerPort: 9000
-        - containerPort: 9443
-        volumeMounts:
-        - name: data
-          mountPath: /data
-        - name: docker-sock
-          mountPath: /var/run/docker.sock
-        resources:
-          requests:
-            cpu: 25m
-            memory: 64Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
-        securityContext:
-          capabilities:
-            drop: ["ALL"]
-          readOnlyRootFilesystem: true
-          allowPrivilegeEscalation: false
-      volumes:
-      - name: data
-        emptyDir: {}
-      - name: docker-sock
-        hostPath:
-          path: /var/run/docker.sock
-          type: Socket
+# NOTE: Portainer requires Docker socket which K3s doesn't have.
+# Use the existing Portainer CT (CT 102) directly instead.
+# This manifest is kept for reference but portainer deployment is scaled to 0.
 ---
 apiVersion: v1
 kind: Service

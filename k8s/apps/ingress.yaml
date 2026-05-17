@@ -37,23 +37,3 @@ spec:
             name: uptime-kuma-svc
             port:
               number: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: portainer-ingress
-  namespace: homelab
-  annotations:
-    kubernetes.io/ingress.class: traefik
-spec:
-  rules:
-  - host: portainer.k3s.meyernet.xyz
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: portainer-svc
-            port:
-              number: 80
